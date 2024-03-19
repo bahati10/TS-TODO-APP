@@ -1,13 +1,16 @@
 import express from "express";
-import { connectToDatabase } from "./Services/database.service.js";
+import { connectToTodosDatabase } from "./Services/todos.database.service.js";
+import { connectToUsersDatabase } from "./Services/users.database.service.js";
 import { todosRouter } from "./Routes/todos.routes.js";
+import { usersRouter } from "./Routes/users.routes.js";
 import dotenv from "dotenv";
 dotenv.config();
 const app = express();
 const port = process.env.PORT || 4000;
-connectToDatabase()
+Promise.all([connectToTodosDatabase(), connectToUsersDatabase()])
     .then(() => {
     app.use("/todos", todosRouter);
+    app.use("/users", usersRouter); // Use the users router for /users routes
     app.listen(port, () => {
         console.log(`Server started at http://localhost:${port}`);
     });
