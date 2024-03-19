@@ -1,5 +1,4 @@
 // External Dependencies
-import { ObjectId } from "mongodb";
 
 // Class Implementation
 export default class Todo {
