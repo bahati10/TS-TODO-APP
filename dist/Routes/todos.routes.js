@@ -1,7 +1,7 @@
 // External Dependencies
 import express from "express";
 import { ObjectId } from "mongodb";
-import { collections } from "../Services/database.service.js";
+import { collections } from "../Services/todos.database.service.js";
 import Todo from "../Models/todos.js";
 // Global Config
 export const todosRouter = express.Router();
@@ -11,7 +11,7 @@ todosRouter.get("/", async (_req, res) => {
     try {
         const todosFromDb = await collections.todos?.find({}).toArray() ?? [];
         const todos = todosFromDb.map((todoDoc) => {
-            return new Todo(todoDoc.name, todoDoc.category, todoDoc.DateAdded, todoDoc._id.toString());
+            return new Todo(todoDoc.title, todoDoc.category, todoDoc.done, todoDoc.description, todoDoc.DateAdded, todoDoc._id.toString());
         });
         res.status(200).send(todos);
     }
@@ -19,6 +19,7 @@ todosRouter.get("/", async (_req, res) => {
         res.status(500).send(error.message);
     }
 });
+// GET by ID
 todosRouter.get("/:id", async (req, res) => {
     const id = req?.params?.id;
     try {
@@ -36,9 +37,11 @@ todosRouter.get("/:id", async (req, res) => {
         }
         const todoObject = {
             id: todo._id.toString(),
-            name: todo.name,
-            DateAdded: todo.DateDate,
+            title: todo.title,
+            description: todo.description,
             category: todo.category,
+            done: todo.done,
+            DateAdded: todo.DateDate,
         };
         res.status(200).send(todoObject);
     }
@@ -55,8 +58,7 @@ todosRouter.post("/", async (req, res) => {
         const newTodo = req.body;
         const result = await collections.todos.insertOne(newTodo);
         if (result.insertedId) {
-            // Fetch the newly inserted todo from the database
-            const insertedTodo = await collections.todos.findOne({ _id: result.insertedId });
+            const insertedTodo = await collections.todos.findOne({ _id: result.insertedId }, { projection: { title: 1, category: 1, done: 1, description: 1 } });
             if (insertedTodo) {
                 console.log('Todo successfully created:', insertedTodo);
                 res.status(201).send({ message: `Successfully created a new todo with id ${result.insertedId}`, todo: insertedTodo });
@@ -87,8 +89,8 @@ todosRouter.put("/:id", async (req, res) => {
         }
         const result = await collections.todos.updateOne(query, { $set: updatedGame });
         result
-            ? res.status(200).send(`Successfully updated game with id ${id}`)
-            : res.status(304).send(`Game with id: ${id} not updated`);
+            ? res.status(200).send(`Successfully updated todo with id ${id}`)
+            : res.status(304).send(`Todo with id: ${id} not updated`);
     }
     catch (error) {
         console.error(error.message);
