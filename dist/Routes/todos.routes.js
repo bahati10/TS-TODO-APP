@@ -87,8 +87,8 @@ todosRouter.put("/:id", async (req, res) => {
         }
         const result = await collections.todos.updateOne(query, { $set: updatedGame });
         result
-            ? res.status(200).send(`Successfully updated game with id ${id}`)
-            : res.status(304).send(`Game with id: ${id} not updated`);
+            ? res.status(200).send(`Successfully updated todo with id ${id}`)
+            : res.status(304).send(`Todo with id: ${id} not updated`);
     }
     catch (error) {
         console.error(error.message);
