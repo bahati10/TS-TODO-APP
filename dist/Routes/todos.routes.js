@@ -1,7 +1,7 @@
 // External Dependencies
 import express from "express";
 import { ObjectId } from "mongodb";
-import { collections } from "../Services/database.service.js";
+import { collections } from "../Services/todos.database.service.js";
 import Todo from "../Models/todos.js";
 // Global Config
 export const todosRouter = express.Router();
@@ -11,7 +11,7 @@ todosRouter.get("/", async (_req, res) => {
     try {
         const todosFromDb = await collections.todos?.find({}).toArray() ?? [];
         const todos = todosFromDb.map((todoDoc) => {
-            return new Todo(todoDoc.name, todoDoc.category, todoDoc.DateAdded, todoDoc._id.toString());
+            return new Todo(todoDoc.name, todoDoc.category, todoDoc.description, todoDoc.DateAdded, todoDoc._id.toString());
         });
         res.status(200).send(todos);
     }
@@ -37,6 +37,7 @@ todosRouter.get("/:id", async (req, res) => {
         const todoObject = {
             id: todo._id.toString(),
             name: todo.name,
+            description: todo.description,
             DateAdded: todo.DateDate,
             category: todo.category,
         };
