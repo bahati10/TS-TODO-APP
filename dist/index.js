@@ -10,7 +10,7 @@ const port = process.env.PORT || 4000;
 Promise.all([connectToTodosDatabase(), connectToUsersDatabase()])
     .then(() => {
     app.use("/todos", todosRouter);
-    app.use("/users", usersRouter); // Use the users router for /users routes
+    app.use("/users", usersRouter);
     app.listen(port, () => {
         console.log(`Server started at http://localhost:${port}`);
     });
