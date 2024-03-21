@@ -1,5 +1,7 @@
 // External Dependencies
 import express, { Request, Response } from "express";
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 import { ObjectId } from "mongodb";
 import { collections } from "../Services/users.database.service.js";
 import User from "../Models/users.js";
@@ -14,10 +16,10 @@ usersRouter.get("/", async (_req: Request, res: Response) => {
         const usersFromDb = await collections.users?.find({}).toArray() ?? [];
 
         const users: User[] = usersFromDb.map((userDoc: any) => {
-            return new User(userDoc.username, userDoc.email, userDoc.createdAt, userDoc._id.toString());
+            return new User(userDoc.names, userDoc.username, userDoc.email, userDoc.password, userDoc.createdAt, userDoc._id.toString());
         });
 
-        res.status(200).send(users);
+        res.status(200).send({message: "Succesfully retrieved users", users });
     } catch (error: any) {
         res.status(500).send(error.message);
     }
@@ -51,6 +53,9 @@ usersRouter.get("/:id", async (req: Request, res: Response) => {
             email: user.email,
             password: user.password,
             createdAt: user.createdAt,
+            hashPassword: function (): Promise<void> {
+                throw new Error("Function not implemented.");
+            }
         };
 
         res.status(200).send(userObject);
@@ -59,21 +64,36 @@ usersRouter.get("/:id", async (req: Request, res: Response) => {
     }
 });
 
-// POST a new user
-usersRouter.post("/", async (req: Request, res: Response) => {
+// POST/REGISTER
+usersRouter.post("/register", async (req: Request, res: Response) => {
     try {
         if (!collections.users) {
             throw new Error("users collection is not available");
         }
+        
 
-        const newUser = req.body as User;
+        const { names, username, email, password }: { names: string, username: string, email: string, password: string } = req.body;
+
+        if (!names || !username || !email || !password) {
+            return res.status(400).send("All fields are required");
+        }
+
+        const existingUser = await collections.users.findOne({ email });
+
+        if (existingUser) {
+            return res.status(400).send("User with this email already exists.");
+        }
+
+        const newUser = new User(names, username, email, password);
+        await newUser.hashPassword();
+
         const result = await collections.users.insertOne(newUser);
 
         if (result.insertedId) {
-            const insertedUser = await collections.users.findOne({ _id: result.insertedId });
+            const insertedUser = await collections.users.findOne({ _id: result.insertedId}, {projection: {names:1, username: 1, email: 1}} );
 
             if (insertedUser) {
-                console.log('User successfully created:', insertedUser);
+                console.log('User successfully created');
                 res.status(201).send({ message: `Successfully created a new user with id ${result.insertedId}`, user: insertedUser });
 
             } else {
@@ -90,12 +110,48 @@ usersRouter.post("/", async (req: Request, res: Response) => {
     }
 });
 
+
+// POST/LOGIN
+usersRouter.post("/login", async (req: Request, res: Response) => {
+    try {
+        const { email, password }: { email: string, password: string } = req.body;
+
+        if (!email || !password) {
+            return res.status(400).send("Email and password are required");
+        }
+
+        const user = await collections.users?.findOne({ email });
+
+        if (!user) {
+            return res.status(404).send("User not found");
+        }
+
+        const isPasswordValid = await bcrypt.compare(password, user.password);
+
+        if (!isPasswordValid) {
+            return res.status(401).send("Invalid credentials");
+        }
+
+        const token = jwt.sign({ userId: user._id, email: user.email, username: user.username}, process.env.JWT_SECRET || '', { expiresIn: '1h' });
+
+        res.status(200).send({ token });
+    } catch (error) {
+        console.error('Error logging in:', error);
+        res.status(500).send("Internal server error");
+    }
+});
+
+
+
+
 // PUT update a user by ID
-usersRouter.put("/:id", async (req: Request, res: Response) => {
+usersRouter.put("/update/:id", async (req: Request, res: Response) => {
     const id = req?.params?.id;
 
     try {
         const updatedUser: User = req.body as User;
+        await updatedUser.hashPassword();
+
         const query = { _id: new ObjectId(id) };
 
         if (!collections.users) {
@@ -114,7 +170,7 @@ usersRouter.put("/:id", async (req: Request, res: Response) => {
 });
 
 // DELETE a user by ID
-usersRouter.delete("/:id", async (req: Request, res: Response) => {
+usersRouter.delete("/delete/:id", async (req: Request, res: Response) => {
     const id = req?.params?.id;
 
     try {

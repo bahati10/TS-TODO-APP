@@ -1,26 +1,29 @@
 // External Dependencies
 import express from "express";
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 import { ObjectId } from "mongodb";
 import { collections } from "../Services/users.database.service.js";
 import User from "../Models/users.js";
+import { verifyToken } from "../Middlewares/login.middlewware.js";
 // Global Config
 export const usersRouter = express.Router();
 usersRouter.use(express.json());
 // GET all users
-usersRouter.get("/", async (_req, res) => {
+usersRouter.get("/all", verifyToken, async (_req, res) => {
     try {
         const usersFromDb = await collections.users?.find({}).toArray() ?? [];
         const users = usersFromDb.map((userDoc) => {
-            return new User(userDoc.username, userDoc.email, userDoc.createdAt, userDoc._id.toString());
+            return new User(userDoc.names, userDoc.username, userDoc.email, userDoc.password, userDoc.createdAt, userDoc._id.toString());
         });
-        res.status(200).send(users);
+        res.status(200).send({ message: "Succesfully retrieved users", users });
     }
     catch (error) {
         res.status(500).send(error.message);
     }
 });
 // GET a user by ID
-usersRouter.get("/:id", async (req, res) => {
+usersRouter.get("/all:id", async (req, res) => {
     const id = req?.params?.id;
     try {
         if (!id) {
@@ -42,6 +45,9 @@ usersRouter.get("/:id", async (req, res) => {
             email: user.email,
             password: user.password,
             createdAt: user.createdAt,
+            hashPassword: function () {
+                throw new Error("Function not implemented.");
+            }
         };
         res.status(200).send(userObject);
     }
@@ -49,18 +55,27 @@ usersRouter.get("/:id", async (req, res) => {
         res.status(500).send(error.message);
     }
 });
-// POST a new user
-usersRouter.post("/", async (req, res) => {
+// POST/REGISTER
+usersRouter.post("/register", async (req, res) => {
     try {
         if (!collections.users) {
             throw new Error("users collection is not available");
         }
-        const newUser = req.body;
+        const { names, username, email, password } = req.body;
+        if (!names || !username || !email || !password) {
+            return res.status(400).send("All fields are required");
+        }
+        const existingUser = await collections.users.findOne({ email });
+        if (existingUser) {
+            return res.status(400).send("User with this email already exists.");
+        }
+        const newUser = new User(names, username, email, password);
+        await newUser.hashPassword();
         const result = await collections.users.insertOne(newUser);
         if (result.insertedId) {
-            const insertedUser = await collections.users.findOne({ _id: result.insertedId });
+            const insertedUser = await collections.users.findOne({ _id: result.insertedId }, { projection: { names: 1, username: 1, email: 1 } });
             if (insertedUser) {
-                console.log('User successfully created:', insertedUser);
+                console.log('User successfully created');
                 res.status(201).send({ message: `Successfully created a new user with id ${result.insertedId}`, user: insertedUser });
             }
             else {
@@ -78,11 +93,35 @@ usersRouter.post("/", async (req, res) => {
         res.status(400).send(error.message);
     }
 });
+// POST/LOGIN
+usersRouter.post("/login", async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        if (!email || !password) {
+            return res.status(400).send("Email and password are required");
+        }
+        const user = await collections.users?.findOne({ email });
+        if (!user) {
+            return res.status(404).send("User not found");
+        }
+        const isPasswordValid = await bcrypt.compare(password, user.password);
+        if (!isPasswordValid) {
+            return res.status(401).send("Invalid credentials");
+        }
+        const token = jwt.sign({ userId: user._id, email: user.email, username: user.username }, process.env.JWT_SECRET || '', { expiresIn: '1h' });
+        res.status(200).send({ token });
+    }
+    catch (error) {
+        console.error('Error logging in:', error);
+        res.status(500).send("Internal server error");
+    }
+});
 // PUT update a user by ID
 usersRouter.put("/:id", async (req, res) => {
     const id = req?.params?.id;
     try {
         const updatedUser = req.body;
+        await updatedUser.hashPassword();
         const query = { _id: new ObjectId(id) };
         if (!collections.users) {
             throw new Error("users collection is not available");
