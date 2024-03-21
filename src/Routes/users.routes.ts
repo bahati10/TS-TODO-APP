@@ -1,30 +1,33 @@
 // External Dependencies
 import express, { Request, Response } from "express";
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 import { ObjectId } from "mongodb";
 import { collections } from "../Services/users.database.service.js";
 import User from "../Models/users.js";
+import { verifyToken } from "../Middlewares/login.middlewware.js";
 
 // Global Config
 export const usersRouter = express.Router();
 usersRouter.use(express.json());
 
 // GET all users
-usersRouter.get("/", async (_req: Request, res: Response) => {
+usersRouter.get("/all", verifyToken, async (_req: Request, res: Response) => {
     try {
         const usersFromDb = await collections.users?.find({}).toArray() ?? [];
 
         const users: User[] = usersFromDb.map((userDoc: any) => {
-            return new User(userDoc.name, userDoc.username, userDoc.email, userDoc.createdAt);
+            return new User(userDoc.names, userDoc.username, userDoc.email, userDoc.password, userDoc.createdAt, userDoc._id.toString());
         });
 
-        res.status(200).send(users);
+        res.status(200).send({message: "Succesfully retrieved users", users });
     } catch (error: any) {
         res.status(500).send(error.message);
     }
 });
 
 // GET a user by ID
-usersRouter.get("/:id", async (req: Request, res: Response) => {
+usersRouter.get("/all:id", async (req: Request, res: Response) => {
     const id = req?.params?.id;
 
     try {
@@ -62,7 +65,7 @@ usersRouter.get("/:id", async (req: Request, res: Response) => {
     }
 });
 
-// POST a new user
+// POST/REGISTER
 usersRouter.post("/", async (req: Request, res: Response) => {
     try {
         if (!collections.users) {
@@ -83,7 +86,7 @@ usersRouter.post("/", async (req: Request, res: Response) => {
         const result = await collections.users.insertOne(newUser);
 
         if (result.insertedId) {
-            const insertedUser = await collections.users.findOne({ _id: result.insertedId });
+            const insertedUser = await collections.users.findOne({ _id: result.insertedId}, {projection: {names:1, username: 1, email: 1}} );
 
             if (insertedUser) {
                 console.log('User successfully created');
@@ -102,6 +105,39 @@ usersRouter.post("/", async (req: Request, res: Response) => {
         res.status(400).send(error.message);
     }
 });
+
+
+// POST/LOGIN
+usersRouter.post("/login", async (req: Request, res: Response) => {
+    try {
+        const { email, password }: { email: string, password: string } = req.body;
+
+        if (!email || !password) {
+            return res.status(400).send("Email and password are required");
+        }
+
+        const user = await collections.users?.findOne({ email });
+
+        if (!user) {
+            return res.status(404).send("User not found");
+        }
+
+        const isPasswordValid = await bcrypt.compare(password, user.password);
+
+        if (!isPasswordValid) {
+            return res.status(401).send("Invalid credentials");
+        }
+
+        const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET || '', { expiresIn: '1h' });
+
+        res.status(200).send({ token });
+    } catch (error) {
+        console.error('Error logging in:', error);
+        res.status(500).send("Internal server error");
+    }
+});
+
+
 
 
 // PUT update a user by ID
@@ -128,7 +164,6 @@ usersRouter.put("/:id", async (req: Request, res: Response) => {
         res.status(400).send(error.message);
     }
 });
-
 
 // DELETE a user by ID
 usersRouter.delete("/:id", async (req: Request, res: Response) => {

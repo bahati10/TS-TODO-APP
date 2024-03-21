@@ -3,6 +3,8 @@ import express, { Request, Response } from "express";
 import { ObjectId } from "mongodb";
 import { collections } from "../Services/todos.database.service.js";
 import Todo from "../Models/todos.js";
+import { verifyToken } from "../Middlewares/login.middlewware.js";
+
 // Global Config
 export const todosRouter = express.Router();
 todosRouter.use(express.json());

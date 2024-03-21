@@ -13,34 +13,8 @@ export async function connectToTodosDatabase () {
     await client.connect();
         
     const db: mongoDB.Db = client.db(process.env.DB_NAME);
-
-  //   await db.command({
-  //     "collMod": process.env.TODOS_COLLECTION_NAME,
-  //     "validator": {
-  //         $jsonSchema: {
-  //             bsonType: "object",
-  //             required: ["name", "description", "category"],
-  //             additionalProperties: false,
-  //             properties: {
-  //             _id: {},
-  //             name: {
-  //                 bsonType: "string",
-  //                 description: "'name' is required and is a string"
-  //             },
-  //             desscription: {
-  //                 bsonType: "string",
-  //                 description: "'Description' is required and is a string"
-  //             },
-  //             category: {
-  //                 bsonType: "string",
-  //                 description: "'category' is required and is a string"
-  //             }
-  //             }
-  //         }
-  //      }
-  // });
    
-  const todosCollection: mongoDB.Collection = db.collection(process.env.TODOS_COLLECTION_NAME ?? '');
+    const todosCollection: mongoDB.Collection = db.collection(process.env.TODOS_COLLECTION_NAME ?? '');
  
   collections.todos = todosCollection;
        
