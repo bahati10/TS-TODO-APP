@@ -11,7 +11,7 @@ todosRouter.get("/", async (_req, res) => {
     try {
         const todosFromDb = await collections.todos?.find({}).toArray() ?? [];
         const todos = todosFromDb.map((todoDoc) => {
-            return new Todo(todoDoc.name, todoDoc.category, todoDoc.description, todoDoc.DateAdded, todoDoc._id.toString());
+            return new Todo(todoDoc.title, todoDoc.category, todoDoc.done, todoDoc.description, todoDoc.DateAdded, todoDoc._id.toString());
         });
         res.status(200).send(todos);
     }
@@ -19,6 +19,7 @@ todosRouter.get("/", async (_req, res) => {
         res.status(500).send(error.message);
     }
 });
+// GET by ID
 todosRouter.get("/:id", async (req, res) => {
     const id = req?.params?.id;
     try {
@@ -36,10 +37,11 @@ todosRouter.get("/:id", async (req, res) => {
         }
         const todoObject = {
             id: todo._id.toString(),
-            name: todo.name,
+            title: todo.title,
             description: todo.description,
-            DateAdded: todo.DateDate,
             category: todo.category,
+            done: todo.done,
+            DateAdded: todo.DateDate,
         };
         res.status(200).send(todoObject);
     }
@@ -56,8 +58,7 @@ todosRouter.post("/", async (req, res) => {
         const newTodo = req.body;
         const result = await collections.todos.insertOne(newTodo);
         if (result.insertedId) {
-            // Fetch the newly inserted todo from the database
-            const insertedTodo = await collections.todos.findOne({ _id: result.insertedId });
+            const insertedTodo = await collections.todos.findOne({ _id: result.insertedId }, { projection: { title: 1, category: 1, done: 1, description: 1 } });
             if (insertedTodo) {
                 console.log('Todo successfully created:', insertedTodo);
                 res.status(201).send({ message: `Successfully created a new todo with id ${result.insertedId}`, todo: insertedTodo });

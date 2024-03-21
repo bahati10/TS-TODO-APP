@@ -3,6 +3,8 @@ import express, { Request, Response } from "express";
 import { ObjectId } from "mongodb";
 import { collections } from "../Services/todos.database.service.js";
 import Todo from "../Models/todos.js";
+import { verifyToken } from "../Middlewares/login.middlewware.js";
+
 // Global Config
 export const todosRouter = express.Router();
 todosRouter.use(express.json());
@@ -13,7 +15,7 @@ todosRouter.get("/", async (_req: Request, res: Response) => {
         const todosFromDb = await collections.todos?.find({}).toArray() ?? [];
 
         const todos: Todo[] = todosFromDb.map((todoDoc: any) => {
-            return new Todo(todoDoc.name, todoDoc.category, todoDoc.description, todoDoc.DateAdded, todoDoc._id.toString());
+            return new Todo(todoDoc.title, todoDoc.category, todoDoc.done, todoDoc.description, todoDoc.DateAdded, todoDoc._id.toString());
         });
         res.status(200).send(todos);
     } catch (error: any) {
@@ -22,7 +24,7 @@ todosRouter.get("/", async (_req: Request, res: Response) => {
 });
 
 
-
+// GET by ID
 todosRouter.get("/:id", async (req: Request, res: Response) => {
     const id = req?.params?.id;
 
@@ -45,10 +47,11 @@ todosRouter.get("/:id", async (req: Request, res: Response) => {
 
         const todoObject: Todo = {
             id: todo._id.toString(),
-            name: todo.name,
+            title: todo.title,
             description: todo.description,
-            DateAdded: todo.DateDate,
             category: todo.category,
+            done: todo.done,
+            DateAdded: todo.DateDate,
         };
 
         res.status(200).send(todoObject);
@@ -68,8 +71,7 @@ todosRouter.post("/", async (req: Request, res: Response) => {
         const result = await collections.todos.insertOne(newTodo);
 
         if (result.insertedId) {
-            // Fetch the newly inserted todo from the database
-            const insertedTodo = await collections.todos.findOne({ _id: result.insertedId });
+            const insertedTodo = await collections.todos.findOne({ _id: result.insertedId }, { projection:{ title: 1, category: 1, done: 1, description: 1} });
             
             if (insertedTodo) {
                 console.log('Todo successfully created:', insertedTodo);
