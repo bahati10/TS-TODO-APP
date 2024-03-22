@@ -3,7 +3,6 @@ import express, { Request, Response } from "express";
 import { ObjectId } from "mongodb";
 import { collections } from "../Services/todos.database.service.js";
 import Todo from "../Models/todos.js";
-import { verifyToken } from "../Middlewares/login.middlewware.js";
 
 // Global Config
 export const todosRouter = express.Router();
@@ -61,13 +60,20 @@ todosRouter.get("/:id", async (req: Request, res: Response) => {
 });
 
 // POST
-todosRouter.post("/", async (req: Request, res: Response) => {
+todosRouter.post("/add", async (req: Request, res: Response) => {
     try {
         if (!collections.todos) {
             throw new Error("todos collection is not available");
         }
 
-        const newTodo = req.body as Todo;
+        const { title, description, done, category }: { title: string, description: string, done: boolean, category: string } = req.body;
+
+        if (!title || !description || !category) {
+            return res.status(400).send("All fields are required");
+        }
+
+        const newTodo = new Todo(title, category, done, description)
+
         const result = await collections.todos.insertOne(newTodo);
 
         if (result.insertedId) {
@@ -94,7 +100,7 @@ todosRouter.post("/", async (req: Request, res: Response) => {
 
 
 // PUT
-todosRouter.put("/:id", async (req: Request, res: Response) => {
+todosRouter.put("/update/:id", async (req: Request, res: Response) => {
     const id = req?.params?.id;
 
     try {
@@ -118,7 +124,7 @@ todosRouter.put("/:id", async (req: Request, res: Response) => {
 
 // DELETE
 
-todosRouter.delete("/:id", async (req: Request, res: Response) => {
+todosRouter.delete("/update/:id", async (req: Request, res: Response) => {
     const id = req?.params?.id;
 
     try {

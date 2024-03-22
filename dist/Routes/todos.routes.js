@@ -55,7 +55,11 @@ todosRouter.post("/", async (req, res) => {
         if (!collections.todos) {
             throw new Error("todos collection is not available");
         }
-        const newTodo = req.body;
+        const { title, description, done, category } = req.body;
+        if (!title || !description || !category) {
+            return res.status(400).send("All fields are required");
+        }
+        const newTodo = new Todo(title, category, done, description);
         const result = await collections.todos.insertOne(newTodo);
         if (result.insertedId) {
             const insertedTodo = await collections.todos.findOne({ _id: result.insertedId }, { projection: { title: 1, category: 1, done: 1, description: 1 } });

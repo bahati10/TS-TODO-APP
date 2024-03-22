@@ -5,14 +5,13 @@ import bcrypt from 'bcryptjs';
 import { ObjectId } from "mongodb";
 import { collections } from "../Services/users.database.service.js";
 import User from "../Models/users.js";
-import { verifyToken } from "../Middlewares/login.middlewware.js";
 
 // Global Config
 export const usersRouter = express.Router();
 usersRouter.use(express.json());
 
 // GET all users
-usersRouter.get("/all", verifyToken, async (_req: Request, res: Response) => {
+usersRouter.get("/", async (_req: Request, res: Response) => {
     try {
         const usersFromDb = await collections.users?.find({}).toArray() ?? [];
 
@@ -27,7 +26,7 @@ usersRouter.get("/all", verifyToken, async (_req: Request, res: Response) => {
 });
 
 // GET a user by ID
-usersRouter.get("/all:id", async (req: Request, res: Response) => {
+usersRouter.get("/:id", async (req: Request, res: Response) => {
     const id = req?.params?.id;
 
     try {
@@ -66,13 +65,18 @@ usersRouter.get("/all:id", async (req: Request, res: Response) => {
 });
 
 // POST/REGISTER
-usersRouter.post("/", async (req: Request, res: Response) => {
+usersRouter.post("/register", async (req: Request, res: Response) => {
     try {
         if (!collections.users) {
             throw new Error("users collection is not available");
         }
+        
 
         const { names, username, email, password }: { names: string, username: string, email: string, password: string } = req.body;
+
+        if (!names || !username || !email || !password) {
+            return res.status(400).send("All fields are required");
+        }
 
         const existingUser = await collections.users.findOne({ email });
 
@@ -128,7 +132,7 @@ usersRouter.post("/login", async (req: Request, res: Response) => {
             return res.status(401).send("Invalid credentials");
         }
 
-        const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET || '', { expiresIn: '1h' });
+        const token = jwt.sign({ userId: user._id, email: user.email, username: user.username}, process.env.JWT_SECRET || '', { expiresIn: '1h' });
 
         res.status(200).send({ token });
     } catch (error) {
@@ -141,7 +145,7 @@ usersRouter.post("/login", async (req: Request, res: Response) => {
 
 
 // PUT update a user by ID
-usersRouter.put("/:id", async (req: Request, res: Response) => {
+usersRouter.put("/update/:id", async (req: Request, res: Response) => {
     const id = req?.params?.id;
 
     try {
@@ -166,7 +170,7 @@ usersRouter.put("/:id", async (req: Request, res: Response) => {
 });
 
 // DELETE a user by ID
-usersRouter.delete("/:id", async (req: Request, res: Response) => {
+usersRouter.delete("/delete/:id", async (req: Request, res: Response) => {
     const id = req?.params?.id;
 
     try {

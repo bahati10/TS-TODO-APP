@@ -56,12 +56,15 @@ usersRouter.get("/all:id", async (req, res) => {
     }
 });
 // POST/REGISTER
-usersRouter.post("/", async (req, res) => {
+usersRouter.post("/register", async (req, res) => {
     try {
         if (!collections.users) {
             throw new Error("users collection is not available");
         }
         const { names, username, email, password } = req.body;
+        if (!names || !username || !email || !password) {
+            return res.status(400).send("All fields are required");
+        }
         const existingUser = await collections.users.findOne({ email });
         if (existingUser) {
             return res.status(400).send("User with this email already exists.");
@@ -105,7 +108,7 @@ usersRouter.post("/login", async (req, res) => {
         if (!isPasswordValid) {
             return res.status(401).send("Invalid credentials");
         }
-        const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET || '', { expiresIn: '1h' });
+        const token = jwt.sign({ userId: user._id, email: user.email, username: user.username }, process.env.JWT_SECRET || '', { expiresIn: '1h' });
         res.status(200).send({ token });
     }
     catch (error) {
