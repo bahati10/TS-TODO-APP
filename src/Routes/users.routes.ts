@@ -5,13 +5,14 @@ import bcrypt from 'bcryptjs';
 import { ObjectId } from "mongodb";
 import { collections } from "../Services/users.database.service.js";
 import User from "../Models/users.js";
+import { verifyToken } from "../Middlewares/login.middlewware.js";
 
 // Global Config
 export const usersRouter = express.Router();
 usersRouter.use(express.json());
 
 // GET all users
-usersRouter.get("/", async (_req: Request, res: Response) => {
+usersRouter.get("/", verifyToken, async (_req: Request, res: Response) => {
     try {
         const usersFromDb = await collections.users?.find({}).toArray() ?? [];
 
@@ -19,7 +20,7 @@ usersRouter.get("/", async (_req: Request, res: Response) => {
             return new User(userDoc.names, userDoc.username, userDoc.email, userDoc.password, userDoc.createdAt, userDoc._id.toString());
         });
 
-        res.status(200).send({message: "Succesfully retrieved users", users });
+        res.status(200).json({msg: "Succesfully retrieved users", users });
     } catch (error: any) {
         res.status(500).send(error.message);
     }
@@ -81,7 +82,7 @@ usersRouter.post("/register", async (req: Request, res: Response) => {
         const existingUser = await collections.users.findOne({ email });
 
         if (existingUser) {
-            return res.status(400).send("User with this email already exists.");
+            return res.status(400).json({ msg:"User with this email already exists." });
         }
 
         const newUser = new User(names, username, email, password);
@@ -94,7 +95,7 @@ usersRouter.post("/register", async (req: Request, res: Response) => {
 
             if (insertedUser) {
                 console.log('User successfully created');
-                res.status(201).send({ message: `Successfully created a new user with id ${result.insertedId}`, user: insertedUser });
+                res.status(201).json({ msg: `Successfully created a new user with id ${result.insertedId}`, user: insertedUser });
 
             } else {
                 console.error('Failed to fetch newly created user:', result.insertedId);
@@ -129,7 +130,7 @@ usersRouter.post("/login", async (req: Request, res: Response) => {
         const isPasswordValid = await bcrypt.compare(password, user.password);
 
         if (!isPasswordValid) {
-            return res.status(401).send("Invalid credentials");
+            return res.status(401).json({ msg: "Invalid credentials" });
         }
 
         const token = jwt.sign({ userId: user._id, email: user.email, username: user.username}, process.env.JWT_SECRET || '', { expiresIn: '1h' });
@@ -149,13 +150,37 @@ usersRouter.put("/update/:id", async (req: Request, res: Response) => {
     const id = req?.params?.id;
 
     try {
-        const updatedUser: User = req.body as User;
-        await updatedUser.hashPassword();
-
-        const query = { _id: new ObjectId(id) };
+        if (!id) {
+            throw new Error("ID parameter is missing");
+        }
 
         if (!collections.users) {
             throw new Error("users collection is not available");
+        }
+
+        const query = { _id: new ObjectId(id) };
+        const existingUser = await collections.users.findOne(query);
+
+        if (!existingUser) {
+            return res.status(404).send(`User with id ${id} not found`);
+        }
+
+        const updatedUser: User = req.body as User;
+        updatedUser.id = id; // Ensure the ID is set for the updated user
+
+        // Check if the password is provided in the request body
+        if (updatedUser.password) {
+            const newUser = new User(
+                updatedUser.names,
+                updatedUser.username,
+                updatedUser.email,
+                updatedUser.password,
+                updatedUser.createdAt,
+                updatedUser.id
+            );
+
+            await newUser.hashPassword(); // Hash the new password
+            updatedUser.password = newUser.password; // Update the password in the updatedUser object
         }
 
         const result = await collections.users.updateOne(query, { $set: updatedUser });
@@ -168,6 +193,7 @@ usersRouter.put("/update/:id", async (req: Request, res: Response) => {
         res.status(400).send(error.message);
     }
 });
+
 
 // DELETE a user by ID
 usersRouter.delete("/delete/:id", async (req: Request, res: Response) => {

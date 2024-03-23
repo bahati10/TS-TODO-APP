@@ -10,20 +10,20 @@ import { verifyToken } from "../Middlewares/login.middlewware.js";
 export const usersRouter = express.Router();
 usersRouter.use(express.json());
 // GET all users
-usersRouter.get("/all", verifyToken, async (_req, res) => {
+usersRouter.get("/", verifyToken, async (_req, res) => {
     try {
         const usersFromDb = await collections.users?.find({}).toArray() ?? [];
         const users = usersFromDb.map((userDoc) => {
             return new User(userDoc.names, userDoc.username, userDoc.email, userDoc.password, userDoc.createdAt, userDoc._id.toString());
         });
-        res.status(200).send({ message: "Succesfully retrieved users", users });
+        res.status(200).json({ msg: "Succesfully retrieved users", users });
     }
     catch (error) {
         res.status(500).send(error.message);
     }
 });
 // GET a user by ID
-usersRouter.get("/all:id", async (req, res) => {
+usersRouter.get("/:id", async (req, res) => {
     const id = req?.params?.id;
     try {
         if (!id) {
@@ -67,7 +67,7 @@ usersRouter.post("/register", async (req, res) => {
         }
         const existingUser = await collections.users.findOne({ email });
         if (existingUser) {
-            return res.status(400).send("User with this email already exists.");
+            return res.status(400).json({ msg: "User with this email already exists." });
         }
         const newUser = new User(names, username, email, password);
         await newUser.hashPassword();
@@ -76,7 +76,7 @@ usersRouter.post("/register", async (req, res) => {
             const insertedUser = await collections.users.findOne({ _id: result.insertedId }, { projection: { names: 1, username: 1, email: 1 } });
             if (insertedUser) {
                 console.log('User successfully created');
-                res.status(201).send({ message: `Successfully created a new user with id ${result.insertedId}`, user: insertedUser });
+                res.status(201).json({ msg: `Successfully created a new user with id ${result.insertedId}`, user: insertedUser });
             }
             else {
                 console.error('Failed to fetch newly created user:', result.insertedId);
@@ -106,7 +106,7 @@ usersRouter.post("/login", async (req, res) => {
         }
         const isPasswordValid = await bcrypt.compare(password, user.password);
         if (!isPasswordValid) {
-            return res.status(401).send("Invalid credentials");
+            return res.status(401).json({ msg: "Invalid credentials" });
         }
         const token = jwt.sign({ userId: user._id, email: user.email, username: user.username }, process.env.JWT_SECRET || '', { expiresIn: '1h' });
         res.status(200).send({ token });
@@ -117,14 +117,27 @@ usersRouter.post("/login", async (req, res) => {
     }
 });
 // PUT update a user by ID
-usersRouter.put("/:id", async (req, res) => {
+usersRouter.put("/update/:id", async (req, res) => {
     const id = req?.params?.id;
     try {
-        const updatedUser = req.body;
-        await updatedUser.hashPassword();
-        const query = { _id: new ObjectId(id) };
+        if (!id) {
+            throw new Error("ID parameter is missing");
+        }
         if (!collections.users) {
             throw new Error("users collection is not available");
+        }
+        const query = { _id: new ObjectId(id) };
+        const existingUser = await collections.users.findOne(query);
+        if (!existingUser) {
+            return res.status(404).send(`User with id ${id} not found`);
+        }
+        const updatedUser = req.body;
+        updatedUser.id = id; // Ensure the ID is set for the updated user
+        // Check if the password is provided in the request body
+        if (updatedUser.password) {
+            const newUser = new User(updatedUser.names, updatedUser.username, updatedUser.email, updatedUser.password, updatedUser.createdAt, updatedUser.id);
+            await newUser.hashPassword(); // Hash the new password
+            updatedUser.password = newUser.password; // Update the password in the updatedUser object
         }
         const result = await collections.users.updateOne(query, { $set: updatedUser });
         result
@@ -137,7 +150,7 @@ usersRouter.put("/:id", async (req, res) => {
     }
 });
 // DELETE a user by ID
-usersRouter.delete("/:id", async (req, res) => {
+usersRouter.delete("/delete/:id", async (req, res) => {
     const id = req?.params?.id;
     try {
         if (!collections.users) {

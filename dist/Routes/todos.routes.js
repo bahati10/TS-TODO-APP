@@ -50,7 +50,7 @@ todosRouter.get("/:id", async (req, res) => {
     }
 });
 // POST
-todosRouter.post("/", async (req, res) => {
+todosRouter.post("/add", async (req, res) => {
     try {
         if (!collections.todos) {
             throw new Error("todos collection is not available");
@@ -83,7 +83,7 @@ todosRouter.post("/", async (req, res) => {
     }
 });
 // PUT
-todosRouter.put("/:id", async (req, res) => {
+todosRouter.put("/update/:id", async (req, res) => {
     const id = req?.params?.id;
     try {
         const updatedGame = req.body;
@@ -102,7 +102,7 @@ todosRouter.put("/:id", async (req, res) => {
     }
 });
 // DELETE
-todosRouter.delete("/:id", async (req, res) => {
+todosRouter.delete("/update/:id", async (req, res) => {
     const id = req?.params?.id;
     try {
         if (!collections.todos) {
